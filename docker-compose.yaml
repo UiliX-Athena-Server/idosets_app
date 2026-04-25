@@ -1,9 +1,6 @@
-volumes:
-  instance:
-
 services:
   app:
-    container_name: "app-idosets"
+    container_name: "idosets_app"
     build:
       context: .
       dockerfile: Dockerfile
@@ -12,3 +9,7 @@ services:
     volumes:
       - instance:/main/instance
     restart: always
+
+volumes:
+  instance:
+    name: "idosets_app_instance"
