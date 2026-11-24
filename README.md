@@ -35,6 +35,26 @@ uv run pytest                # backend tests
 uv run qwe build             # build the frontend into app/vite (commit the result)
 ```
 
+## Upgrading from 1.x 🗄️
+
+Version 2 uses a new database file, `instance/idosets.sqlite`. Nothing needs to
+be run by hand: when the app starts and finds the old `instance/database.sqlite`
+(and the new database is missing or empty) it copies the data across, checks it,
+and then deletes the old file. Under gunicorn this happens once in the master
+process before the workers start (`on_starting` in `configs/gunicorn.conf.py`);
+a lock file (`instance/.startup.lock`) stops processes from doing it twice.
+
+IDs are kept, so existing login links keep working. While copying it removes
+duplicate set logs, rows left behind by deleted accounts/exercises/sets, gaps in
+set ordering and wrong workout durations. If the new database already has data,
+the old file is left alone and a warning is logged.
+
+To migrate another file by hand (this never deletes it):
+
+```bash
+uv run flask --app app migrate-db --old path/to/old.sqlite
+```
+
 ## License 📜
 
 idosets.app © 2024 by David Carmichael is licensed under CC BY-NC-ND 4.0.

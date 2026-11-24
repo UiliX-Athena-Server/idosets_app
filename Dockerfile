@@ -6,6 +6,8 @@ COPY app app
 COPY .env .env
 
 RUN mkdir -p instance
-RUN flask --app app init-db
+
+# The database is created, or migrated from the pre-2.0 database.sqlite,
+# when gunicorn starts (see on_starting in gunicorn.conf.py).
 
 ENTRYPOINT ["gunicorn", "-c", "gunicorn.conf.py"]
