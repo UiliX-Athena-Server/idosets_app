@@ -1,0 +1,497 @@
+@import 'tailwindcss' source('.');
+
+/* ---- Theme ------------------------------------------------------------- */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: rgb(30, 36, 47);
+  --text: rgba(255, 255, 255, 0.92);
+  --text-muted: rgba(255, 255, 255, 0.6);
+  --card: rgba(120, 120, 120, 0.1);
+  --card-muted: rgba(0, 0, 0, 0.15);
+  --border: rgba(160, 160, 160, 0.15);
+  --input: rgba(56, 65, 80, 0.9);
+  --button: rgba(56, 65, 80, 0.9);
+  --button-hover: rgba(70, 80, 98, 0.95);
+  --nav: rgba(20, 25, 33, 0.92);
+  --good: rgba(34, 197, 94, 0.25);
+  --good-hover: rgba(34, 197, 94, 0.38);
+  --good-border: rgba(34, 197, 94, 0.45);
+  --good-text: rgb(134, 239, 172);
+  --bad: rgba(239, 68, 68, 0.22);
+  --bad-hover: rgba(239, 68, 68, 0.35);
+  --bad-border: rgba(239, 68, 68, 0.4);
+  --warn: rgba(234, 179, 8, 0.18);
+  --warn-border: rgba(234, 179, 8, 0.45);
+  --accent: rgb(125, 211, 252);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: rgb(242, 242, 242);
+  --text: #111;
+  --text-muted: rgba(0, 0, 0, 0.55);
+  --card: rgba(255, 255, 255, 0.8);
+  --card-muted: rgba(0, 0, 0, 0.04);
+  --border: rgb(215, 215, 215);
+  --input: #fff;
+  --button: rgb(229, 229, 229);
+  --button-hover: rgb(215, 215, 215);
+  --nav: rgba(225, 225, 225, 0.94);
+  --good: rgba(34, 197, 94, 0.2);
+  --good-hover: rgba(34, 197, 94, 0.32);
+  --good-border: rgba(22, 163, 74, 0.45);
+  --good-text: rgb(21, 128, 61);
+  --bad: rgba(239, 68, 68, 0.15);
+  --bad-hover: rgba(239, 68, 68, 0.26);
+  --bad-border: rgba(220, 38, 38, 0.4);
+  --warn: rgba(234, 179, 8, 0.15);
+  --warn-border: rgba(202, 138, 4, 0.5);
+  --accent: rgb(3, 105, 161);
+}
+
+/* ---- Base -------------------------------------------------------------- */
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  input,
+  select {
+    @apply w-full rounded-md border px-3 py-2;
+    background: var(--input);
+    border-color: var(--border);
+    color: var(--text);
+    font-size: 1.05rem; /* 16px+ stops iOS zooming on focus */
+  }
+
+  input:focus,
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  button,
+  .button {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-5 py-2 select-none;
+    background: var(--button);
+    border-color: var(--border);
+    color: var(--text);
+  }
+
+  button:hover:not(:disabled),
+  .button:hover {
+    background: var(--button-hover);
+  }
+
+  button:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--button);
+  }
+}
+
+/* ---- Components -------------------------------------------------------- */
+
+@layer components {
+  .container {
+    @apply mx-auto w-full max-w-5xl p-4 sm:p-5;
+  }
+
+  .narrow {
+    @apply mx-auto w-full max-w-md px-5 py-6;
+  }
+
+  .muted {
+    color: var(--text-muted);
+  }
+
+  .eyebrow {
+    @apply mb-1 text-xs font-semibold tracking-wider uppercase;
+    color: var(--text-muted);
+  }
+
+  .page-title {
+    @apply text-3xl font-bold break-words;
+  }
+
+  .page-header {
+    @apply mb-5 flex items-center gap-4;
+  }
+
+  .card {
+    @apply rounded-lg border p-5;
+    background: var(--card);
+    border-color: var(--border);
+  }
+
+  .card-muted {
+    background: var(--card-muted);
+  }
+
+  .card-warning {
+    background: var(--bad);
+    border-color: var(--bad-border);
+  }
+
+  .button-good {
+    background: var(--good) !important;
+    border-color: var(--good-border) !important;
+  }
+  .button-good:hover:not(:disabled) {
+    background: var(--good-hover) !important;
+  }
+
+  .button-bad {
+    background: var(--bad) !important;
+    border-color: var(--bad-border) !important;
+  }
+  .button-bad:hover:not(:disabled) {
+    background: var(--bad-hover) !important;
+  }
+
+  .button-ghost {
+    background: transparent !important;
+    color: var(--text-muted) !important;
+  }
+
+  .button-large {
+    @apply py-3 text-lg font-semibold;
+  }
+
+  .link-button {
+    @apply gap-1 border-0 px-0 py-1 text-sm underline;
+    background: transparent !important;
+    color: var(--accent);
+  }
+
+  .icon-button {
+    @apply inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border p-0;
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .icon-button:hover:not(:disabled) {
+    background: var(--card);
+  }
+  .icon-button-good {
+    background: var(--good);
+    border-color: var(--good-border);
+  }
+
+  .start-button {
+    @apply h-12 rounded-full px-4;
+  }
+
+  .add-button {
+    @apply w-full border-dashed py-8 text-lg;
+    background: transparent;
+  }
+
+  .segmented {
+    @apply inline-flex overflow-hidden rounded-md border;
+    border-color: var(--border);
+  }
+  .segmented button {
+    @apply rounded-none border-0 px-4;
+    background: transparent;
+  }
+  .segmented button.active {
+    background: var(--button-hover);
+    @apply font-semibold;
+  }
+
+  .field-label {
+    @apply text-sm font-semibold;
+    color: var(--text-muted);
+  }
+
+  .number-field {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+  .field-box {
+    @apply relative flex items-center;
+  }
+  .field-box input {
+    @apply text-xl font-semibold;
+  }
+  .field-suffix {
+    @apply pointer-events-none absolute right-3;
+    color: var(--text-muted);
+  }
+
+  .duration-field {
+    @apply flex flex-col gap-1;
+  }
+
+  .error-text:empty {
+    display: none;
+  }
+  .error-text {
+    color: rgb(248, 113, 113);
+  }
+
+  .notice {
+    @apply flex items-start gap-3 rounded-md border p-4 text-left;
+  }
+  .notice-warning {
+    background: var(--warn);
+    border-color: var(--warn-border);
+  }
+
+  .confirm {
+    @apply flex flex-col gap-3 rounded-md border p-4 sm:flex-row sm:items-center sm:justify-between;
+    border-color: var(--border);
+    background: var(--card-muted);
+  }
+
+  .top-menu {
+    @apply sticky top-0 z-40 flex items-center justify-between px-4 py-2 backdrop-blur;
+    background: var(--nav);
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+  .brand {
+    @apply text-lg font-bold;
+  }
+  .nav-link {
+    @apply inline-flex items-center gap-2 rounded-md border-0 px-3 py-2;
+    background: transparent;
+  }
+  .nav-link[aria-current='page'] {
+    background: var(--card);
+  }
+  .nav-label {
+    @apply hidden md:inline;
+  }
+
+  .stats {
+    @apply mt-2 grid grid-cols-3 gap-3 text-center;
+  }
+  .stats div {
+    @apply flex flex-col;
+  }
+  .stats strong {
+    @apply text-xl;
+  }
+  .stats span {
+    @apply text-xs;
+    color: var(--text-muted);
+  }
+
+  .set-number {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold;
+    background: var(--card-muted);
+    color: var(--text-muted);
+  }
+
+  .instructions-link {
+    @apply mt-1 inline-flex items-center gap-2 text-sm opacity-80 hover:opacity-100;
+  }
+  .favicon {
+    @apply h-6 w-6 rounded-full border bg-white object-contain;
+    border-color: var(--border);
+  }
+
+  /* -- workout session -- */
+
+  .session-bar {
+    @apply sticky z-30 mb-5 flex items-center gap-5 rounded-md border px-4 py-2 font-semibold backdrop-blur;
+    top: 4rem;
+    background: var(--nav);
+    border-color: var(--border);
+  }
+  .session-bar span {
+    @apply inline-flex items-center gap-1;
+  }
+
+  .set-card {
+    @apply flex flex-col gap-3 rounded-lg border p-4 transition-colors;
+    background: var(--card);
+    border-color: var(--border);
+    scroll-margin: 8rem;
+  }
+  .set-card.is-done {
+    border-color: var(--good-border);
+  }
+  .set-card.is-open {
+    border-color: var(--accent);
+  }
+
+  .previous-log {
+    @apply mt-1 flex flex-wrap items-center gap-1 text-sm;
+    color: var(--text-muted);
+  }
+
+  .set-log {
+    @apply w-full justify-start gap-2 border-0 px-3 py-3 text-left font-semibold;
+    background: var(--good) !important;
+    color: var(--good-text);
+  }
+  .set-log:disabled {
+    @apply cursor-default opacity-100;
+  }
+
+  .pending-badge {
+    @apply ml-auto inline-flex items-center gap-1 text-xs font-normal;
+    color: var(--text-muted);
+  }
+
+  .log-form {
+    @apply flex flex-col gap-4 rounded-md p-3;
+    background: var(--card-muted);
+  }
+
+  .summary-sets {
+    @apply flex flex-col gap-2;
+  }
+  .summary-sets li {
+    @apply flex items-center gap-3;
+  }
+
+  /* -- charts -- */
+
+  .chart {
+    @apply flex flex-col gap-2;
+  }
+  .chart-canvas {
+    @apply relative h-56;
+  }
+
+  /* -- toasts -- */
+
+  .toasts {
+    @apply pointer-events-none fixed inset-x-0 z-50 mx-auto flex w-full max-w-md flex-col gap-2 px-4;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .toast {
+    @apply pointer-events-auto flex items-start gap-3 rounded-lg border p-4 shadow-xl;
+    background: var(--bg);
+    border-color: var(--border);
+    animation: toast-in 0.2s ease-out;
+  }
+  .toast-success {
+    border-color: var(--good-border);
+  }
+  .toast-warning {
+    border-color: var(--warn-border);
+    background: color-mix(in srgb, var(--bg) 85%, rgb(234, 179, 8));
+  }
+  .toast-error {
+    border-color: var(--bad-border);
+  }
+  .toast-close {
+    @apply h-8 w-8 rounded-full border-0 p-0;
+    background: transparent;
+  }
+
+  /* -- landing -- */
+
+  .landing-screenshots {
+    @apply flex justify-center gap-4;
+  }
+  .landing-screenshots img {
+    @apply max-w-[45%];
+  }
+  .legal {
+    @apply mx-auto max-w-3xl py-8 text-sm;
+  }
+  .legal h2 {
+    @apply mb-4 text-xl font-bold;
+  }
+  .legal h3 {
+    @apply mt-6 mb-2 font-bold;
+  }
+  .legal p {
+    @apply mb-2;
+  }
+  .legal ul {
+    @apply list-disc py-2 pl-6;
+  }
+  .footer {
+    @apply flex flex-col gap-2 py-8 text-center text-sm;
+    color: var(--text-muted);
+  }
+  .footer a {
+    @apply underline;
+  }
+
+  /* -- loading -- */
+
+  .page-loading {
+    @apply flex flex-col items-center justify-center gap-4 py-20;
+  }
+  .spinner {
+    @apply h-6 w-6;
+    animation: spin 2s linear infinite;
+  }
+  .spinner-small {
+    @apply h-4 w-4;
+  }
+  .spinner circle {
+    stroke: currentColor;
+    stroke-linecap: round;
+    animation: dash 1.5s ease-in-out infinite;
+  }
+
+  .flashing-good {
+    animation: flash-good 2s infinite;
+  }
+  .flashing-warning-color {
+    animation: flash-warning 2s infinite;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes dash {
+  0% {
+    stroke-dasharray: 0 150;
+    stroke-dashoffset: 0;
+  }
+  47.5% {
+    stroke-dasharray: 42 150;
+    stroke-dashoffset: -16;
+  }
+  95%,
+  100% {
+    stroke-dasharray: 42 150;
+    stroke-dashoffset: -59;
+  }
+}
+@keyframes flash-good {
+  50% {
+    background: var(--good-hover);
+  }
+}
+@keyframes flash-warning {
+  50% {
+    color: rgb(234, 179, 8);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}

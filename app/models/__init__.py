@@ -1,48 +1,23 @@
-from sqlalchemy import (
-    select,
-    delete,
-    update,
-    insert,
-    desc,
-    asc,
-    func,
-    and_,
-    or_,
-    not_,
-    ForeignKey,
-    Column,
-    Integer,
-    Float,
-    String,
-    Boolean,
-    DateTime,
-    JSON,
-)
-from sqlalchemy.orm import relationship
+"""
+Database models.
 
-from app.extensions import db
-from app.utilities.datetime_delta import DatetimeDelta
+The table and column layout here must stay compatible with the existing
+production SQLite database (tables are created with ``db.create_all()``, there
+are no migrations). Only add nullable columns, never rename or retype.
+"""
+
+from .accounts import Accounts
+from .exercises import Exercises
+from .set_logs import SetLogs
+from .sets import Sets
+from .workout_sessions import WorkoutSessions
+from .workouts import Workouts
 
 __all__ = [
-    "db",
-    "select",
-    "delete",
-    "update",
-    "insert",
-    "desc",
-    "asc",
-    "func",
-    "and_",
-    "or_",
-    "not_",
-    "ForeignKey",
-    "Column",
-    "Integer",
-    "Float",
-    "String",
-    "Boolean",
-    "DateTime",
-    "JSON",
-    "DatetimeDelta",
-    "relationship",
+    "Accounts",
+    "Exercises",
+    "SetLogs",
+    "Sets",
+    "WorkoutSessions",
+    "Workouts",
 ]

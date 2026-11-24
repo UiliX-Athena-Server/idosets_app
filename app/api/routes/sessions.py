@@ -1,214 +1,171 @@
-from flask import session, request
-from flask_imp.security import api_login_check
+from flask_imp import ImpBlueprint
+from flask_imp.security import checkpoint
 
-from app.models.set_logs import SetLogs
-from app.models.workouts import Workouts
-from app.models.workout_sessions import WorkoutSessions
-from .. import bp
-
-
-@bp.get("/workout/<workout_id>/sessions/<workout_session_id>")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
+from app.api.helpers import (
+    account_id,
+    body,
+    fail,
+    not_found,
+    ok,
+    units,
+    whole_number,
 )
-def get_session_(workout_id, workout_session_id):
-    account_id = session.get("account_id", 0)
+from app.checkpoints import LOGIN_REQUIRED
+from app.extensions import db
+from app.models import SetLogs, Sets, Workouts, WorkoutSessions
+from app.services.workout_sessions import session_payload
+from app.utilities.weights import to_grams, to_number
 
-    workout_session = Workouts.get_session(
-        account_id=account_id,
-        workout_id=workout_id,
-        workout_session_id=workout_session_id,
-        weight_unit=session.get("units", "kgs"),
+ONE_DAY = 60 * 60 * 24
+MAX_WEIGHT = 10_000  # in the user's unit; anything above is a typo
+
+
+def _log_values(data: dict, unit: str) -> dict:
+    weight = min(to_number(data.get("weight")), MAX_WEIGHT)
+    return {
+        "weight_grams": to_grams(weight, unit),
+        "reps": whole_number(data.get("reps"), 10_000),
+        "duration": whole_number(data.get("duration"), ONE_DAY),
+    }
+
+
+def _load(workout_id, workout_session_id):
+    aid = account_id()
+    workout = Workouts.get_owned(aid, workout_id)
+    workout_session = WorkoutSessions.get_owned(
+        aid, workout_id, workout_session_id
     )
-
-    if workout_session.get("error"):
-        return {
-            "status": "error",
-            "message": workout_session.get("error"),
-        }
-
-    return {
-        "status": "success",
-        "message": "-",
-        **workout_session,
-    }
+    if not workout or not workout_session:
+        return None, None
+    return workout, workout_session
 
 
-@bp.delete("/workout/<workout_id>/sessions/<workout_session_id>/delete")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def delete_session_(workout_session_id):
-    _ = WorkoutSessions
+def include(bp: ImpBlueprint):
+    @bp.post("/workouts/<workout_id>/sessions")
+    @checkpoint(LOGIN_REQUIRED)
+    def start_session(workout_id):
+        aid = account_id()
+        workout = Workouts.get_owned(aid, workout_id)
+        if not workout:
+            return not_found("Workout")
+        workout_session = WorkoutSessions.start(aid, workout.workout_id)
+        return ok(workout_session=workout_session.to_dict())
 
-    return {
-        "status": "success",
-        "message": "Workout deleted successfully.",
-        "workout_session_id": workout_session_id,
-    }
+    @bp.get("/workouts/<workout_id>/sessions/<workout_session_id>")
+    @checkpoint(LOGIN_REQUIRED)
+    def get_session(workout_id, workout_session_id):
+        workout, workout_session = _load(workout_id, workout_session_id)
+        if not workout:
+            return not_found("Workout session")
+        return ok(
+            **session_payload(account_id(), workout, workout_session, units())
+        )
 
-
-@bp.get("/workout/<workout_id>/sessions")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def sessions_():
-    return {
-        "status": "success",
-        "message": "-",
-        **WorkoutSessions.sessions(session.get("account_id", 0)),
-    }
-
-
-@bp.get("/sessions/active")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def sessions_active_():
-    active_sessions = (
-        WorkoutSessions.active_sessions(session.get("account_id", 0)),
+    @bp.put(
+        "/workouts/<workout_id>/sessions/<workout_session_id>/sets/<set_id>/log"
     )
-    apply_workout_id_as_key = {}
-    for active_session in active_sessions:
-        apply_workout_id_as_key[
-            active_session.get("workout_id")
-        ] = active_session
+    @checkpoint(LOGIN_REQUIRED)
+    def log_set(workout_id, workout_session_id, set_id):
+        workout, workout_session = _load(workout_id, workout_session_id)
+        if not workout:
+            return not_found("Workout session")
+        if workout_session.is_finished:
+            return fail("This workout has already been finished.", 409)
 
-    return {
-        "status": "success",
-        "message": "-",
-        "active_sessions": apply_workout_id_as_key,
-    }
+        set_ = db.session.get(Sets, int(set_id)) if set_id.isdigit() else None
+        if not set_ or set_.workout_id != workout.workout_id:
+            return not_found("Set")
 
+        unit = units()
+        log = SetLogs.upsert(
+            account_id=account_id(),
+            workout_id=workout.workout_id,
+            workout_session_id=workout_session.workout_session_id,
+            exercise_id=set_.exercise_id,
+            set_id=set_.set_id,
+            **_log_values(body(), unit),
+        )
+        return ok(set_log=log.to_dict(unit))
 
-@bp.get("/workout/<workout_id>/sessions/start")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def sessions_start_(workout_id):
-    session_ = WorkoutSessions.start_session(
-        account_id=session.get("account_id", 0), workout_id=workout_id
+    @bp.delete(
+        "/workouts/<workout_id>/sessions/<workout_session_id>/sets/<set_id>/log"
     )
-    return {
-        "status": "success",
-        "message": "Workout session started.",
-        **session_,
-    }
+    @checkpoint(LOGIN_REQUIRED)
+    def undo_set(workout_id, workout_session_id, set_id):
+        workout, workout_session = _load(workout_id, workout_session_id)
+        if not workout:
+            return not_found("Workout session")
+        if workout_session.is_finished:
+            return fail("This workout has already been finished.", 409)
+        if not set_id.isdigit():
+            return not_found("Set")
+        SetLogs.remove(workout_session.workout_session_id, int(set_id))
+        return ok(message="Set log removed.")
 
+    @bp.post("/workouts/<workout_id>/sessions/<workout_session_id>/finish")
+    @checkpoint(LOGIN_REQUIRED)
+    def finish_session(workout_id, workout_session_id):
+        """
+        Saves any logs the client still holds (e.g. made while offline) and
+        finishes the session. Idempotent: calling it again after a timeout
+        or a double tap just returns the finished summary.
+        """
+        aid = account_id()
+        workout, workout_session = _load(workout_id, workout_session_id)
+        if not workout:
+            return not_found("Workout session")
 
-@bp.post("/workout/<workout_id>/sessions/<workout_session_id>/stop")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def sessions_stop_(workout_id, workout_session_id):
-    jsond = request.json
+        unit = units()
 
-    _ = workout_id
+        if not workout_session.is_finished:
+            workout_sets = {
+                s.set_id: s
+                for s in Sets.list_for_workout(aid, workout.workout_id)
+            }
+            data = body()
+            logs = data.get("logs") or []
+            if not isinstance(logs, list):
+                logs = []
+            # With "replace", the client's list is the complete record of
+            # the session: logs for sets missing from it (undone while
+            # offline) are removed.
+            kept_set_ids = set()
 
-    log_collection = jsond.get("log_collection")
+            for item in logs:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    set_ = workout_sets.get(int(item.get("set_id")))
+                except (TypeError, ValueError):
+                    continue
+                if not set_:
+                    continue
+                SetLogs.upsert(
+                    account_id=aid,
+                    workout_id=workout.workout_id,
+                    workout_session_id=workout_session.workout_session_id,
+                    exercise_id=set_.exercise_id,
+                    set_id=set_.set_id,
+                    commit=False,
+                    **_log_values(item, unit),
+                )
+                kept_set_ids.add(set_.set_id)
 
-    if log_collection:
-        for log in log_collection:
-            SetLogs.add_log(
-                account_id=log.get("account_id"),
-                workout_id=log.get("workout_id"),
-                workout_session_id=log.get("workout_session_id"),
-                exercise_id=log.get("exercise_id"),
-                set_id=log.get("set_id"),
-                weight=log.get("weight"),
-                duration=log.get("duration"),
-                reps=log.get("reps"),
-                weight_unit=session.get("units", "kgs"),
-            )
+            if data.get("replace") is True:
+                SetLogs.remove_except(
+                    workout_session.workout_session_id, kept_set_ids
+                )
 
-    session_ = WorkoutSessions.stop_session(
-        account_id=session.get("account_id", 0),
-        workout_session_id=workout_session_id,
-    )
-    return {
-        "status": "success",
-        "message": "Workout session stopped.",
-        **session_,
-    }
+            workout_session.finish()  # commits the logs too
 
+        return ok(**session_payload(aid, workout, workout_session, unit))
 
-@bp.delete("/workout/<workout_id>/sessions/<workout_session_id>/cancel")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def sessions_cancel_(workout_id, workout_session_id):
-    WorkoutSessions.delete_session(
-        account_id=session.get("account_id", 0),
-        workout_session_id=workout_session_id,
-    )
-    return {
-        "status": "success",
-        "message": "Workout session canceled.",
-        "workout_session_id": workout_session_id,
-    }
-
-
-@bp.post("/workouts/<workout_id>/sessions/<workout_session_id>/log-set")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def sets_log_set_(workout_id, workout_session_id):
-    jsond = request.json
-
-    account_id = session.get("account_id", 0)
-    weight_units = session.get("units", "kgs")
-
-    workout_id = workout_id
-    workout_session_id = workout_session_id
-
-    exercise_id = jsond.get("exercise_id")
-    set_id = jsond.get("set_id")
-
-    weight = jsond.get("weight")
-    duration = jsond.get("duration")
-    reps = jsond.get("reps")
-
-    _set_log_id = SetLogs.add_log(
-        account_id=account_id,
-        workout_id=workout_id,
-        workout_session_id=workout_session_id,
-        exercise_id=exercise_id,
-        set_id=set_id,
-        weight=weight,
-        duration=duration,
-        reps=reps,
-        weight_unit=weight_units,
-    )
-    return {
-        "status": "success",
-        "message": "Set log added successfully.",
-        "set_log": {
-            "set_log_id": _set_log_id,
-            "account_id": account_id,
-            "workout_id": workout_id,
-            "workout_session_id": workout_session_id,
-            "exercise_id": exercise_id,
-            "set_id": set_id,
-            "weight": weight,
-            "duration": duration,
-            "reps": reps,
-        },
-    }
-
-
-@bp.delete(
-    "/workouts/<workout_id>/sessions/<workout_session_id>/log-set/<set_log_id>/delete"
-)
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def delete_set_log_(workout_id, workout_session_id, set_log_id):
-    _ = workout_id
-    _ = workout_session_id
-
-    SetLogs.delete_by_set_log_id(set_log_id)
-
-    return {
-        "status": "success",
-        "message": "Set log deleted.",
-    }
+    @bp.delete("/workouts/<workout_id>/sessions/<workout_session_id>")
+    @checkpoint(LOGIN_REQUIRED)
+    def cancel_session(workout_id, workout_session_id):
+        workout, workout_session = _load(workout_id, workout_session_id)
+        if not workout:
+            # Already gone, which is what the caller wanted.
+            return ok(message="Workout session cancelled.")
+        workout_session.delete_with_logs()
+        return ok(message="Workout session cancelled.")

@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ session.get('theme', 'dark') }}">
+<head>
+    {{ head.compile(render_head_tag=False) }}
+    {{ vt_head('frontend') }}
+</head>
+<body>
+{{ vt_body() }}
+</body>
+</html>

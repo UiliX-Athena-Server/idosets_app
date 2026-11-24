@@ -1,145 +1,82 @@
-import validators
-import requests
-from bs4 import BeautifulSoup
-from flask import session, request
-from flask_imp.security import api_login_check
+from flask_imp import ImpBlueprint
+from flask_imp.security import checkpoint
 
-from app.models.workouts import Workouts
-from app.models.exercises import Exercises
-from app.models.sets import Sets
-from app.models.set_logs import SetLogs
-from app.utilities.datetime_delta import DatetimeDelta
-from .. import bp
+from app.api.helpers import account_id, body, fail, not_found, ok, text
+from app.checkpoints import LOGIN_REQUIRED
+from app.extensions import db
+from app.models import Exercises, Sets, Workouts
+from app.utilities.favicon import clean_url, find_favicon
 
 
-@bp.get("/workouts/<workout_id>/exercises")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def exercises_(workout_id):
-    _exercises = Exercises.select_all(session.get("account_id", 0), workout_id)
-    return {"status": "success", **_exercises}
+def include(bp: ImpBlueprint):
+    @bp.post("/workouts/<workout_id>/exercises")
+    @checkpoint(LOGIN_REQUIRED)
+    def add_exercise(workout_id):
+        aid = account_id()
+        workout = Workouts.get_owned(aid, workout_id)
+        if not workout:
+            return not_found("Workout")
 
+        data = body()
+        name = text(data.get("name"))
+        if not name:
+            return fail("Please give the exercise a name.")
 
-@bp.get("/workouts/<workout_id>/exercises/<exercise_id>")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def exercise_(workout_id, exercise_id):
-    _workout = Workouts.select_by_id(session.get("account_id", 0), workout_id)
-    _exercise = Exercises.select_by_id(
-        session.get("account_id", 0),
-        workout_id,
-        exercise_id,
-    )
-    _sets = Sets.select_all(
-        session.get("account_id", 0), workout_id, exercise_id
-    )
-    return {"status": "success", **_workout, **_exercise, **_sets}
-
-
-@bp.post("/workouts/<workout_id>/exercises/add")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def exercises_add_(workout_id):
-    jsond = request.json
-
-    account_id = session.get("account_id", 0)
-
-    name = jsond.get("name")
-    info_url = jsond.get("info_url")
-    order = jsond.get("order")
-
-    favicon_url = None
-
-    if validators.url(info_url):
-        resp = requests.get(info_url)
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.content, "html.parser")
-            favicon_shortcut_icon = soup.find("link", rel="shortcut icon")
-            favicon_icon = soup.find("link", rel="icon")
-
-            if favicon_shortcut_icon:
-                favicon_url = favicon_shortcut_icon["href"]
-            elif favicon_icon:
-                favicon_url = favicon_icon["href"]
-
-    if name and len(name) > 0:
-        _exercise = Exercises.um_create(
-            {
-                "account_id": account_id,
-                "workout_id": workout_id,
-                "order": order,
-                "name": name,
-                "info_url": info_url,
-                "info_url_favicon": favicon_url,
-                "created": DatetimeDelta().datetime,
-            },
-            return_record=True,
+        info_url = clean_url(text(data.get("info_url"), 2048))
+        exercise = Exercises.create(
+            account_id=aid,
+            workout_id=workout.workout_id,
+            name=name,
+            info_url=info_url,
+            info_url_favicon=find_favicon(info_url),
         )
-        return {
-            "status": "success",
-            "message": "Exercise added successfully.",
-            "exercise_id": _exercise.exercise_id,
-        }
+        return ok(exercise=exercise.to_dict())
 
-    return {
-        "status": "failed",
-        "message": "Unable to add exercise.",
-        "workout_id": 0,
-    }
+    @bp.get("/workouts/<workout_id>/exercises/<exercise_id>")
+    @checkpoint(LOGIN_REQUIRED)
+    def get_exercise(workout_id, exercise_id):
+        aid = account_id()
+        workout = Workouts.get_owned(aid, workout_id)
+        exercise = Exercises.get_owned(aid, workout_id, exercise_id)
+        if not workout or not exercise:
+            return not_found("Exercise")
 
+        return ok(
+            workout=workout.to_dict(),
+            exercise=exercise.to_dict(),
+            sets=[
+                s.to_dict()
+                for s in Sets.list_for_exercise(aid, exercise.exercise_id)
+            ],
+        )
 
-@bp.post("/workouts/<workout_id>/exercises/<exercise_id>/edit")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def exercises_edit_(workout_id, exercise_id):
-    jsond = request.json
+    @bp.patch("/workouts/<workout_id>/exercises/<exercise_id>")
+    @checkpoint(LOGIN_REQUIRED)
+    def edit_exercise(workout_id, exercise_id):
+        exercise = Exercises.get_owned(account_id(), workout_id, exercise_id)
+        if not exercise:
+            return not_found("Exercise")
 
-    favicon_url = None
+        data = body()
+        name = text(data.get("name"))
+        if not name:
+            return fail("Please give the exercise a name.")
 
-    if validators.url(jsond.get("info_url")):
-        resp = requests.get(jsond.get("info_url"))
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.content, "html.parser")
-            favicon_shortcut_icon = soup.find("link", rel="shortcut icon")
-            favicon_icon = soup.find("link", rel="icon")
+        info_url = clean_url(text(data.get("info_url"), 2048))
+        if info_url != exercise.info_url or not exercise.info_url_favicon:
+            exercise.info_url_favicon = find_favicon(info_url)
 
-            if favicon_shortcut_icon:
-                favicon_url = favicon_shortcut_icon["href"]
-            elif favicon_icon:
-                favicon_url = favicon_icon["href"]
+        exercise.name = name
+        exercise.info_url = info_url
 
-    _exercise = Exercises.update_(
-        {
-            "workout_id": workout_id,
-            "exercise_id": exercise_id,
-            "name": jsond.get("name"),
-            "info_url": jsond.get("info_url"),
-            "info_url_favicon": favicon_url,
-        }
-    )
+        db.session.commit()
+        return ok(exercise=exercise.to_dict())
 
-    return {
-        "status": "success",
-        "message": "Exercise edited successfully.",
-        "exercise_id": _exercise,
-    }
-
-
-@bp.delete("/workouts/<workout_id>/exercises/<exercise_id>/delete")
-@api_login_check(
-    "logged_in", True, {"status": "unauthorized", "message": "unauthorized"}
-)
-def exercises_delete_(workout_id, exercise_id):
-    _ = workout_id
-    Exercises.um_delete(exercise_id)
-    Sets.delete_all_by_exercise_id(exercise_id)
-    SetLogs.delete_all_by_exercise_id(exercise_id)
-    return {
-        "status": "success",
-        "message": "Exercise edited successfully.",
-        "exercise_id": exercise_id,
-    }
+    @bp.delete("/workouts/<workout_id>/exercises/<exercise_id>")
+    @checkpoint(LOGIN_REQUIRED)
+    def delete_exercise(workout_id, exercise_id):
+        exercise = Exercises.get_owned(account_id(), workout_id, exercise_id)
+        if not exercise:
+            return not_found("Exercise")
+        exercise.delete_with_data()
+        return ok(message="Exercise deleted.")

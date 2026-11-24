@@ -1,24 +1,49 @@
-[tool.black]
-line-length = 88
-target-version = ['py38']
-include = '\.pyi?$'
+[project]
+name = "idosets_app"
+version = "2.0.0"
+description = "A workout webapp that is focused towards doing sets."
+requires-python = ">=3.13"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "email-validator>=2.4.0",
+    "flask>=3.1.3",
+    "flask-imp>=6.5.0",
+    "flask-sqlalchemy>=3.1.1",
+    "flask-vite-transporter>=2.2.0",
+    "gunicorn>=27.0.1",
+    "notifyvia-email>=1.0.0",
+    "pyhead>=6.1.1",
+    "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
+    "sqlalchemy>=2.1.9",
+    "tzdata>=2026.1",
+]
+
+[dependency-groups]
+dev = [
+    "pyqwe>=4.0.0",
+    "pytest>=9.0.0",
+    "ruff>=0.14.0",
+]
 
 [tool.ruff]
 line-length = 80
 indent-width = 4
 
-[lint]
-ignore = ["F403", "F405"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.pyqwe]
 dev = [
     "@async",
-    "*:flask run --debug --port 5001",
+    "*:flask --app app run --debug --port 5001",
     "*(frontend):npm run dev",
 ]
+build = "*:vt pack transport"
+backup_database = "*:flask --app app backup-db"
 
 [tool.flask_vite_transporter]
 npm_exec = "npm"
 npx_exec = "npx"
 serve_app = "app"
-vite_apps = ["frontend"]
+vite_app.frontend = "frontend"

@@ -1,9 +1,17 @@
-FROM python:alpine
+# docker build -f Dockerfile-base -t idosets_app-base:latest .
+
+FROM ghcr.io/astral-sh/uv:python3.13-alpine
+
+# timezone:
 ENV TZ=Europe/London
-RUN apk add --update --no-cache linux-headers tzdata
+
+######### MAIN FILES ##########
 WORKDIR /main
+COPY pyproject.toml pyproject.toml
+COPY uv.lock uv.lock
+###############################
 
-COPY requirements/main.txt r.txt
-
-RUN python -m pip install --upgrade pip
-RUN pip install -r r.txt
+# Install the project's dependencies using the lockfile and settings
+RUN uv sync --no-dev
+# Place executables in the environment at the front of the path
+ENV PATH="/main/.venv/bin:$PATH"

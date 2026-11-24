@@ -1,198 +1,89 @@
-from app.utilities.weight_converter import (
-    grams_to_pounds,
-    grams_to_kilograms,
+from datetime import datetime
+
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    delete,
+    func,
+    select,
 )
-from . import *
-from .__mixins__ import UtilityMixin
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.extensions import db
+from app.utilities import dates
 
 
-class Workouts(db.Model, UtilityMixin):
-    # PriKey
-    workout_id = Column(Integer, primary_key=True)
-
-    # ForKey
-    account_id = Column(Integer, db.ForeignKey("accounts.account_id"))
-
-    name = Column(String(255), nullable=False)
-
-    created = Column(DateTime, nullable=False, default=DatetimeDelta().datetime)
-
-    rel_exercises = relationship(
-        "Exercises",
-        viewonly=True,
-        cascade="all, delete-orphan",
+class Workouts(db.Model):
+    workout_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("accounts.account_id")
     )
 
-    @classmethod
-    def update_(cls, data: dict):
-        q = db.session.execute(
-            update(cls)
-            .where(cls.workout_id == data["workout_id"])
-            .values({
-                "name": data["name"],
-            })
-            .returning(cls.workout_id)
-        )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    created: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=dates.now
+    )
 
-        result = q.scalar_one()
-
-        if result:
-            db.session.commit()
-
-        return result
-
-    @classmethod
-    def get_by_account_id(cls, account_id: int):
-        q = select(cls).where(cls.account_id == account_id)
-        return db.session.execute(q).scalars().all()
-
-    @classmethod
-    def get_session(
-        cls,
-        account_id: int,
-        workout_id: int,
-        workout_session_id: int,
-        weight_unit: str = "kgs",
-    ) -> dict:
-        from app.models.exercises import Exercises
-        from app.models.sets import Sets
-        from app.models.set_logs import SetLogs
-        from app.models.workout_sessions import WorkoutSessions
-
-        converters = {"kgs": grams_to_kilograms, "lbs": grams_to_pounds}
-
-        total_weight = 0
-
-        workout_session = WorkoutSessions.um_as_jsonable_dict(
-            select(WorkoutSessions).where(
-                and_(
-                    WorkoutSessions.account_id == account_id,
-                    WorkoutSessions.workout_session_id == workout_session_id,
-                )
-            ),
-            remove_return_key=True,
-            one_or_none=True,
-        )
-
-        if not workout_session:
-            return {
-                "error": "Workout session not found.",
-            }
-
-        workout = cls.um_as_jsonable_dict(
-            select(cls).where(
-                and_(
-                    cls.account_id == account_id,
-                    cls.workout_id == workout_id,
-                )
-            ),
-            remove_return_key=True,
-            one_or_none=True,
-        )
-
-        if not workout:
-            return {
-                "error": "Workout not found.",
-            }
-
-        exercises = Exercises.um_as_jsonable_dict(
-            select(Exercises)
-            .where(
-                and_(
-                    Exercises.account_id == account_id,
-                    Exercises.workout_id == workout_id,
-                )
-            )
-            .order_by(asc(Exercises.order)),
-            remove_return_key=True,
-        )
-
-        if not exercises.get("items"):
-            return {
-                "error": "Workout has no exercises.",
-            }
-
-        for exercise in exercises.get("items"):
-            _sets = Sets.um_as_jsonable_dict(
-                select(Sets)
-                .where(
-                    and_(
-                        Sets.account_id == account_id,
-                        Sets.exercise_id == exercise["exercise_id"],
-                    )
-                )
-                .order_by(asc(Sets.order)),
-                remove_return_key=True,
-            )
-            exercise["sets"] = _sets.get("items")
-            for set_ in exercise["sets"]:
-                set_["set_log"] = SetLogs.um_as_jsonable_dict(
-                    select(SetLogs).where(
-                        and_(
-                            SetLogs.account_id == account_id,
-                            SetLogs.set_id == set_["set_id"],
-                            SetLogs.workout_session_id == workout_session_id,
-                        )
-                    ),
-                    remove_return_key=True,
-                    one_or_none=True,
-                )
-                if set_["set_log"]:
-                    weight = set_["set_log"]["weight"]
-                    set_["set_log"]["weight"] = converters.get(weight_unit)(
-                        weight
-                    )
-                    total_weight += weight
-
-        if workout_session["is_finished"]:
-            workout_session["duration"] = (
-                workout_session["finished"] - workout_session["started"]
-            ).seconds
-            workout_session["total_weight"] = converters.get(weight_unit)(
-                total_weight
-            )
-        else:
-            workout_session["duration"] = 0
-            workout_session["total_weight"] = 0
-
+    def to_dict(self) -> dict:
         return {
-            "workout_session": workout_session,
-            "workout": workout,
-            "exercises": exercises,
+            "workout_id": self.workout_id,
+            "name": self.name,
+            "created": dates.iso(self.created),
         }
 
     @classmethod
-    def count_by_account_id(cls, account_id: int) -> int:
+    def get_owned(cls, account_id: int, workout_id) -> "Workouts | None":
+        try:
+            workout_id = int(workout_id)
+        except (TypeError, ValueError):
+            return None
+        return db.session.execute(
+            select(cls).where(
+                cls.workout_id == workout_id,
+                cls.account_id == account_id,
+            )
+        ).scalar_one_or_none()
+
+    @classmethod
+    def list_for_account(cls, account_id: int) -> list["Workouts"]:
+        return list(
+            db.session.execute(
+                select(cls)
+                .where(cls.account_id == account_id)
+                .order_by(cls.created.desc(), cls.workout_id.desc())
+            ).scalars()
+        )
+
+    @classmethod
+    def count_for_account(cls, account_id: int) -> int:
         return db.session.execute(
             select(func.count(cls.workout_id)).where(
                 cls.account_id == account_id
             )
-        ).scalar()
+        ).scalar_one()
 
     @classmethod
-    def select_all(cls, account_it: int):
-        return cls.um_as_jsonable_dict(
-            select(cls)
-            .where(cls.account_id == account_it)
-            .order_by(desc(cls.created)),
-            relationships=["rel_exercises"],
-        )
+    def create(cls, account_id: int, name: str) -> "Workouts":
+        workout = cls(account_id=account_id, name=name, created=dates.now())
+        db.session.add(workout)
+        db.session.commit()
+        return workout
 
-    @classmethod
-    def select_by_id(cls, account_id, workout_id: int):
-        return cls.um_as_jsonable_dict(
-            select(cls).where(
-                and_(
-                    cls.account_id == account_id,
-                    cls.workout_id == workout_id,
-                )
+    def rename(self, name: str) -> None:
+        self.name = name
+        db.session.commit()
+
+    def delete_with_data(self) -> None:
+        from .exercises import Exercises
+        from .set_logs import SetLogs
+        from .sets import Sets
+        from .workout_sessions import WorkoutSessions
+
+        for model in (SetLogs, WorkoutSessions, Sets, Exercises):
+            db.session.execute(
+                delete(model).where(model.workout_id == self.workout_id)
             )
-        )
-
-    @classmethod
-    def get_workout(cls, workout_id: int):
-        return cls.um_as_jsonable_dict(
-            select(cls).where(cls.workout_id == workout_id),
-            one_or_none=True,
-            remove_return_key=True,
-        )
+        db.session.delete(self)
+        db.session.commit()

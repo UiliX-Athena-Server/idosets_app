@@ -24,7 +24,6 @@
     --nav-bg-color: rgba(20, 25, 33, 0.9);
 
     --card-bg-color: rgba(99, 99, 99, 0.1);
-
 }
 
 [data-theme='light'] {
@@ -316,6 +315,12 @@ body {
         @apply flex p-6 rounded-md border;
         border-color: var(--html-default-border-color);
         background-color: var(--card-bg-color);
+    }
+
+    .display-box-mute {
+        @apply flex p-6 rounded-md border;
+        border-color: var(--html-default-border-color);
+        background-color: rgba(0, 0, 0, 0.1);
     }
 
     .display-box-slim {
