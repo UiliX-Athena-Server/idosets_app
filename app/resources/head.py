@@ -1,37 +1,52 @@
-from flask import current_app as app
-from flask import g
+from flask import Flask
 from pyhead import Head
+from pyhead.elements import (
+    Favicon,
+    OpenGraphWebsite,
+    Page,
+    ReferrerPolicy,
+    Robots,
+    ThemeColor,
+    TwitterCard,
+)
+
+TITLE = "I Do Sets"
+DESCRIPTION = "A workout webapp; focused towards doing sets."
+SITE_URL = "https://idosets.app"
+
+HEAD = Head(
+    [
+        Page(
+            title=TITLE,
+            description=DESCRIPTION,
+            viewport="width=device-width, initial-scale=1, viewport-fit=cover",
+        ),
+        Robots("noindex, nofollow"),
+        ThemeColor("#1E242F"),
+        ReferrerPolicy("no-referrer"),
+        Favicon(ico_icon_href="/favicon.ico"),
+        OpenGraphWebsite(
+            locale="en_GB",
+            site_name=TITLE,
+            title=TITLE,
+            description=DESCRIPTION,
+            url=SITE_URL,
+            image=f"{SITE_URL}/img/facebook.jpg",
+            image_alt="I Do Sets Logo",
+        ),
+        TwitterCard(
+            card="summary",
+            title=TITLE,
+            description=DESCRIPTION,
+            url=SITE_URL,
+            image=f"{SITE_URL}/img/twitter.jpg",
+            image_alt="I Do Sets Logo",
+        ),
+    ]
+)
 
 
-# make the head tag available to all templates
-@app.before_request
-def inject_pyhead():
-    head = Head(
-        title="I Do Sets",
-        description="A workout webapp; focused towards doing sets.",
-        robots="noindex, nofollow",
-        theme_color="#1E242FFF",
-        referrer_policy="no-referrer",
-    )
-    head.set_favicon(
-        ico_icon_href="/favicon.ico",
-    )
-    head.set_opengraph_website(
-        site_name="I Do Sets",
-        title="I Do Sets",
-        description="A workout webapp; focused towards doing sets.",
-        image="https://idosets.app/img/facebook.jpg",
-        image_alt="I Do Sets Logo",
-        url="https://idosets.app",
-        locale="en_GB",
-    )
-    head.set_twitter_card(
-        card="summary",
-        title="I Do Sets",
-        description="A workout webapp; focused towards doing sets.",
-        image="https://idosets.app/img/twitter.jpg",
-        image_alt="I Do Sets Logo",
-        url="https://idosets.app",
-    )
-
-    g.head = head
+def include(app: Flask):
+    @app.context_processor
+    def inject_head():
+        return {"head": HEAD}

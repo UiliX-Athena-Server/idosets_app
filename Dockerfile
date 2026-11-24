@@ -1,4 +1,4 @@
-FROM app-idosets-base:latest
+FROM idosets_app-base:latest
 WORKDIR /main
 
 COPY configs/gunicorn.conf.py gunicorn.conf.py

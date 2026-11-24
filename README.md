@@ -9,10 +9,31 @@ A workout webapp that is focused towards doing sets.
 ## Stack 🥞
 
 - [Flask](https://flask.palletsprojects.com/)
-- [SolidJS](https://www.solidjs.com/)
+- [SolidJS 2](https://www.solidjs.com/)
 - [TailwindCSS](https://tailwindcss.com/)
 - [SQLite](https://www.sqlite.org/index.html)
 - [Docker](https://www.docker.com/)
+
+## Development 🛠️
+
+Requires Python 3.13+, [uv](https://docs.astral.sh/uv/) and Node.js 22.12+.
+
+```bash
+cp .env.needed .env          # then fill in the values
+uv sync
+(cd frontend && npm install)
+uv run flask --app app init-db
+uv run qwe dev               # Flask on :5001, Vite on http://127.0.0.1:5002
+```
+
+Set `EMAIL_DEV_MODE=1` to print login emails to the console instead of sending them.
+Emails are sent with [notifyvia.email](https://pypi.org/project/notifyvia-email/)
+and are rate limited to 5 a day per IP address.
+
+```bash
+uv run pytest                # backend tests
+uv run qwe build             # build the frontend into app/vite (commit the result)
+```
 
 ## License 📜
 

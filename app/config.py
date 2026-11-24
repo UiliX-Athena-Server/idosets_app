@@ -1,38 +1,52 @@
+import logging
 from os import getenv
 from secrets import token_hex
 
 from dotenv import load_dotenv
 from flask_imp.config import FlaskConfig, ImpConfig, SQLiteDatabaseConfig
 
-from app.services import ZeptoEmailServiceSettings
-
 load_dotenv()
 
-solidjs_routes = (
-    ("/login", "solidjs"),
-    ("/logout", "solidjs"),
-    ("/auth/<account_id>/<auth_code>", "auth"),
-    ("/account", "solidjs"),
-    ("/account/delete/<account_id>/<auth_code>", "solidjs"),
-    ("/workouts", "solidjs"),
-    ("/workout/<workout_id>", "solidjs"),
-    ("/workout/<workout_id>/logs", "solidjs"),
-    ("/workout/<workout_id>/exercise/<exercise_id>", "solidjs"),
-    ("/workout/<workout_id>/session/<workout_session_id>", "solidjs"),
+log = logging.getLogger(__name__)
+
+RUN_ENV = getenv("RUN_ENV", "development")
+SET_HOST_URL = getenv("SET_HOST_URL", "http://127.0.0.1:5001").rstrip("/")
+# Only mark the cookie as https-only when the site is actually served over
+# https, otherwise local development could never log in.
+HTTPS = SET_HOST_URL.startswith("https://")
+
+_secret_key = getenv("SECRET_KEY")
+if not _secret_key or _secret_key == "-":
+    # A random key per process means sessions break between gunicorn workers
+    # and restarts, so make this loud in production.
+    log.warning("SECRET_KEY is not set; using a random key for this process.")
+    _secret_key = token_hex(32)
+
+# Routes that are rendered by the SolidJS app. The SPA does its own routing,
+# Flask only has to return the shell for each of these.
+SPA_ROUTES = (
+    "/login",
+    "/logout",
+    "/account",
+    "/account/delete/<account_id>/<auth_code>",
+    "/workouts",
+    "/workout/<workout_id>",
+    "/workout/<workout_id>/logs",
+    "/workout/<workout_id>/exercise/<exercise_id>",
+    "/workout/<workout_id>/session/<workout_session_id>",
 )
 
 flask_config = FlaskConfig(
-    secret_key=getenv("SECRET_KEY", token_hex(32)),
-    permanent_session_lifetime=2678400,
+    secret_key=_secret_key,
+    permanent_session_lifetime=60 * 60 * 24 * 31,
+    session_cookie_samesite="Lax",
+    session_cookie_secure=HTTPS,
+    session_cookie_httponly=True,
 )
 
 flask_config.set_additional(
-    vite_url=getenv("VITE_URL"),
-    set_host_url=getenv("SET_HOST_URL"),
-    run_env=getenv("RUN_ENV"),
-    zepto_mail_sender=getenv("ZEPTO_MAIL_SENDER"),
-    zepto_mail_api_url=getenv("ZEPTO_MAIL_API_URL"),
-    zepto_mail_token=getenv("ZEPTO_MAIL_TOKEN"),
+    set_host_url=SET_HOST_URL,
+    run_env=RUN_ENV,
 )
 
 imp_config = ImpConfig(
@@ -42,12 +56,5 @@ imp_config = ImpConfig(
         "theme": "dark",
         "units": "kgs",
     },
-    database_main=SQLiteDatabaseConfig()
-)
-
-zepto_service_settings = ZeptoEmailServiceSettings(
-    dev_mode=False,
-    sender=getenv("ZEPTO_MAIL_SENDER"),
-    api_url=getenv("ZEPTO_MAIL_API_URL"),
-    token=getenv("ZEPTO_MAIL_TOKEN"),
+    database_main=SQLiteDatabaseConfig(),
 )
