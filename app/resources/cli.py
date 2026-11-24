@@ -4,8 +4,42 @@ from pathlib import Path
 import click
 from flask import Flask
 
+OLD_DATABASE = "database.sqlite"
+
 
 def include(app: Flask):
+    @app.cli.command("migrate-db")
+    @click.option(
+        "--old",
+        "old_path",
+        type=click.Path(dir_okay=False, path_type=Path),
+        default=None,
+        help="The old database file (default: instance/database.sqlite).",
+    )
+    def migrate_db(old_path):
+        """Copy the old database into the new one, cleaning it up on the way."""
+        from app.extensions import db
+        from app.migration import MigrationError, migrate
+
+        old_path = old_path or Path(app.instance_path) / OLD_DATABASE
+        new_path = db.engine.url.database
+        click.echo(f"Old database: {old_path}")
+        click.echo(f"New database: {new_path}")
+
+        if Path(old_path).resolve() == Path(new_path).resolve():
+            raise click.ClickException(
+                "The old and new database are the same file."
+            )
+
+        try:
+            report = migrate(old_path)
+        except MigrationError as err:
+            raise click.ClickException(str(err)) from err
+
+        for line in report.lines():
+            click.echo(line)
+        click.echo("Done. The old database was not changed.")
+
     @app.cli.command("init-db")
     def init_db():
         """Create any missing tables (safe to run on an existing database)."""

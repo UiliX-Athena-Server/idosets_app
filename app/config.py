@@ -56,5 +56,7 @@ imp_config = ImpConfig(
         "theme": "dark",
         "units": "kgs",
     },
-    database_main=SQLiteDatabaseConfig(),
+    # instance/idosets.sqlite. The pre-2.0 database was instance/database.sqlite;
+    # copy it across with `flask --app app migrate-db`.
+    database_main=SQLiteDatabaseConfig(database_name="idosets"),
 )

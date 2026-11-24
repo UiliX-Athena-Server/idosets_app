@@ -1,30 +1,8 @@
-from pathlib import Path
-
 from flask import Flask, redirect, render_template, session
-from sqlalchemy.engine import make_url
 
 from app.config import SPA_ROUTES, flask_config, imp_config
 from app.extensions import db, imp, vt
-
-
-def _create_database_if_missing(app: Flask) -> None:
-    """Create the SQLite database file and its tables on first run."""
-    url = make_url(app.config["SQLALCHEMY_DATABASE_URI"])
-    if url.get_backend_name() != "sqlite" or url.database in (
-        None,
-        "",
-        ":memory:",
-    ):
-        return
-
-    database_file = Path(url.database)
-    if database_file.exists():
-        return
-
-    database_file.parent.mkdir(parents=True, exist_ok=True)
-    with app.app_context():
-        db.create_all()
-    app.logger.info("Created a new database at %s", database_file)
+from app.startup import prepare_database
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -48,7 +26,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     vt.init_app(app)
 
     db.init_app(app)
-    _create_database_if_missing(app)
+    # Migrates an old database and/or creates a missing one, once, under a
+    # lock shared by every process (see app/startup.py).
+    prepare_database(app)
 
     def spa(**_):
         return render_template("index.html")
